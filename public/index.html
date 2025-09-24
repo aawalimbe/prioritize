@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Manager</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+  <div id="app">
+    <h1>Task Manager</h1>
+    <form class="task-form" id="taskForm">
+      <input type="text" id="title" placeholder="Task title" required />
+      <textarea id="description" placeholder="Description"></textarea>
+      <select id="priority">
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Low" selected>Low</option>
+      </select>
+      <div class="date-time-row">
+        <input type="text" id="dueDate" placeholder="Due Date" />
+        <input type="text" id="dueTime" placeholder="Due Time" />
+      </div>
+      <button type="submit" class="button"><i class="fa fa-plus"></i> Add Task</button>
+    </form>
+    <div class="task-table-wrapper wide">
+      <table class="task-table" id="taskTable">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Description</th>
+            <th>Priority</th>
+            <th>Due Date & Time</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="taskTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
