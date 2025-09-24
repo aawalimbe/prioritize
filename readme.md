@@ -27,6 +27,26 @@ Minimal, responsive task manager app built with **vanilla HTML, CSS, JavaScript*
 - Add tags/recurring support in frontend UI
 - Continue feature development and UX improvements
 
+**Major Changes** (September 2025)
+Soft Delete:
+
+The completed column in the SQL schema now supports a third value: 'Deleted'.
+Deleting a task from the UI sets its status to 'Deleted' in the database, rather than removing the row.
+The backend only fetches tasks where completed != 'Deleted'.
+Update/Edit Logic:
+
+Editing a task now updates the existing row in the database (PATCH), rather than creating a new one.
+The UI form switches to "Update Task" mode when editing, and resets after saving.
+Due Date & Due Time Columns:
+
+The UI now displays Due Date and Due Time as separate columns, matching the SQL schema.
+Status Display Bug Fix:
+
+The UI now correctly displays the status as "Pending" or "Completed" based on the actual value from the database.
+Other Improvements:
+
+PATCH endpoint added to the backend for updating tasks.
+All status changes (complete/undo) now update the correct row, not create duplicates.
 ---
 
 ## Table of Contents

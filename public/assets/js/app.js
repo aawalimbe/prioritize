@@ -1,25 +1,35 @@
+// Track edit mode
+let editTaskId = null;
+// Update a task in the backend (PATCH)
+async function updateTaskInAPI(task) {
+  try {
+    const res = await fetch('/api.php', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(task)
+    });
+    if (!res.ok) throw new Error('Server update failed');
+    const json = await res.json();
+    return json.data;
+  } catch (err) {
+    // offline: update locally
+    let tasks = loadFromLocal();
+    const idx = tasks.findIndex(t => t.id === task.id);
+    if (idx !== -1) {
+      tasks[idx] = { ...tasks[idx], ...task };
+      saveToLocal(tasks);
+    }
+    return { id: task.id };
+  }
+}
 // Main application JS for Task Manager
 // See README for inline comments and logic
 
-const STORAGE_KEY = 'tm_tasks_v1';
+
+
+
 const taskForm = document.getElementById('taskForm');
 const taskTableBody = document.getElementById('taskTableBody');
-
-function saveToLocal(tasks) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-}
-
-function loadFromLocal() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('Failed to parse local tasks', e);
-    return [];
-  }
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   // Flatpickr for date
   flatpickr('#dueDate', {
@@ -36,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     allowInput: true,
     locale: navigator.language || 'default'
   });
-  renderTasks(loadFromLocal());
+  // No longer render from localStorage
 });
 
 function formatDateTime(date, time) {
@@ -53,7 +63,7 @@ function formatDateTime(date, time) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderTasks(loadFromLocal());
+  // No longer render from localStorage
 });
 
 function renderTasks(tasks) {
@@ -61,13 +71,14 @@ function renderTasks(tasks) {
   tasks.forEach((task, idx) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="task-title ${'priority-' + task.priority.toLowerCase()} ${task.completed ? 'completed' : ''}">${task.title}</td>
+      <td class="task-title ${'priority-' + task.priority.toLowerCase()} ${task.completed === 'Completed' ? 'completed' : ''}">${task.title}</td>
       <td>${task.description || ''}</td>
       <td class="${'priority-' + task.priority.toLowerCase()}">${task.priority}</td>
-      <td>${formatDateTime(task.dueDate, task.dueTime)}</td>
-      <td>${task.completed ? 'Completed' : 'Pending'}</td>
+      <td>${task.due_date || ''}</td>
+      <td>${task.due_time || ''}</td>
+      <td>${task.completed === 'Completed' ? 'Completed' : 'Pending'}</td>
       <td><div class="task-actions">
-        <button class="button complete" data-idx="${idx}" title="${task.completed ? 'Undo' : 'Complete'}"><i class="fa ${task.completed ? 'fa-rotate-left' : 'fa-check'}"></i></button>
+        <button class="button complete" data-idx="${idx}" title="${task.completed === 'Completed' ? 'Undo' : 'Complete'}"><i class="fa ${task.completed === 'Completed' ? 'fa-rotate-left' : 'fa-check'}"></i></button>
         <button class="button edit" data-idx="${idx}" title="Edit"><i class="fa fa-pen"></i></button>
         <button class="button delete" data-idx="${idx}" title="Delete"><i class="fa fa-trash"></i></button>
       </div></td>
@@ -81,11 +92,10 @@ async function fetchTasksFromAPI() {
     const res = await fetch('/api.php');
     if (!res.ok) throw new Error('Server returned ' + res.status);
     const payload = await res.json();
-    saveToLocal(payload.data);
     return payload.data;
   } catch (err) {
-    console.warn('Server fetch failed, falling back to local storage', err);
-    return loadFromLocal();
+    console.warn('Server fetch failed', err);
+    return [];
   }
 }
 
@@ -101,10 +111,8 @@ async function addTaskToAPI(task) {
     return json.data; // expect server to return new id
   } catch (err) {
     // offline: save locally
-    const tasks = loadFromLocal();
-    tasks.push(task);
-    saveToLocal(tasks);
-    return { id: 'local-' + Date.now() };
+  // Optionally handle offline mode here
+  return { id: 'local-' + Date.now() };
   }
 }
 
@@ -155,7 +163,57 @@ async function addTask(e) {
   taskForm.reset();
 }
 
-taskForm.addEventListener('submit', addTask);
+
+taskForm.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const title = document.getElementById('title').value.trim();
+  const description = document.getElementById('description').value.trim();
+  const priority = document.getElementById('priority').value;
+  const dueDate = document.getElementById('dueDate').value;
+  let dueTime = document.getElementById('dueTime').value;
+  // Convert 12-hour time with AM/PM to 24-hour format (HH:mm:ss)
+  if (dueTime) {
+    const tempDate = new Date(`1970-01-01T${dueTime}`);
+      if (!isNaN(tempDate.getTime())) {
+      const hours = tempDate.getHours().toString().padStart(2, '0');
+      const minutes = tempDate.getMinutes().toString().padStart(2, '0');
+      const seconds = tempDate.getSeconds().toString().padStart(2, '0');
+      dueTime = `${hours}:${minutes}:${seconds}`;
+    } else {
+        const match = dueTime.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = match[2];
+        const ap = match[3].toUpperCase();
+        if (ap === 'PM' && h < 12) h += 12;
+        if (ap === 'AM' && h === 12) h = 0;
+        dueTime = `${h.toString().padStart(2, '0')}:${m}:00`;
+      }
+    }
+  }
+  const task = {
+    title,
+    description,
+    priority,
+    due_date: dueDate,
+    due_time: dueTime,
+    tags: null,
+    recurring: null,
+    completed: 'Pending'
+  };
+  if (editTaskId) {
+    // Update existing task
+    task.id = editTaskId;
+    await updateTaskInAPI(task);
+    editTaskId = null;
+    document.getElementById('submitBtn').innerHTML = '<i class="fa fa-plus"></i> Add Task';
+  } else {
+    await addTaskToAPI(task);
+  }
+  const tasks = await fetchTasksFromAPI();
+  renderTasks(tasks);
+  taskForm.reset();
+});
 
 document.addEventListener('DOMContentLoaded', async () => {
   const tasks = await fetchTasksFromAPI();
@@ -179,10 +237,12 @@ taskTableBody.addEventListener('click', async function(e) {
       cancelButtonText: 'Cancel'
     }).then(async (result) => {
       if (result.isConfirmed) {
-        // Optionally implement delete in backend
-        tasks.splice(idx, 1);
-        saveToLocal(tasks);
-        renderTasks(tasks);
+        // Mark as deleted in backend
+        const task = tasks[idx];
+        task.completed = 'Deleted';
+        await updateTaskInAPI(task);
+        const updatedTasks = await fetchTasksFromAPI();
+        renderTasks(updatedTasks);
         Swal.fire('Deleted!', 'Task has been deleted.', 'success');
       }
     });
@@ -190,20 +250,18 @@ taskTableBody.addEventListener('click', async function(e) {
     // Toggle completed status and update in backend
     const task = tasks[idx];
     task.completed = (task.completed === 'Pending') ? 'Completed' : 'Pending';
-    await addTaskToAPI(task); // This should be a PATCH/PUT in a real app
-    const updatedTasks = await fetchTasksFromAPI();
-    renderTasks(updatedTasks);
+  await updateTaskInAPI(task);
+  const updatedTasks = await fetchTasksFromAPI();
+  renderTasks(updatedTasks);
   } else if (btn.classList.contains('edit')) {
-    // Simple edit: populate form with task data
+    // Edit: populate form with task data and set edit mode
     const t = tasks[idx];
     document.getElementById('title').value = t.title;
     document.getElementById('description').value = t.description;
     document.getElementById('priority').value = t.priority;
     document.getElementById('dueDate').value = t.due_date || '';
     document.getElementById('dueTime').value = t.due_time || '';
-    // Remove the old task so submit will overwrite
-    tasks.splice(idx, 1);
-    saveToLocal(tasks);
-    renderTasks(tasks);
+    editTaskId = t.id;
+    document.getElementById('submitBtn').innerHTML = '<i class="fa fa-save"></i> Update Task';
   }
 });
